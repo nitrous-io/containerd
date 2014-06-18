@@ -1,6 +1,10 @@
-### agentd
+### containerd
 
-Nitrous.IO agent that runs on boxhost and processes requests to containers
+Nitrous.IO agent that runs on boxhost and processes requests to containers. It
+does:
+- expose commands to modify the container filesystem
+- run commands inside the container
+- attach a shell to the container
 
 ### Endpoints
 
