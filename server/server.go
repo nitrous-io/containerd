@@ -2,15 +2,19 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net"
 	"net/http"
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/nitrous-io/containerd/agent"
 	"github.com/nitrous-io/containerd/stdstream"
+
+	"github.com/nitrous-io/containerd/agent"
+	_ "github.com/nitrous-io/containerd/agent/docker_lxc"
 )
 
 const (
@@ -190,22 +194,27 @@ func (s *Server) makeDir(w http.ResponseWriter, r *http.Request) {
 func (s *Server) newShell(w http.ResponseWriter, r *http.Request) {
 	c, err := s.getClient(r)
 	if err != nil {
+		log.Println(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	shell, err := c.NewShell()
 	if err != nil {
+		log.Println(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	id := randomString()
 	s.Shells[id] = shell
+	log.Println("new shell", id)
 	w.Write([]byte(id))
 }
 
 func (s *Server) attachShell(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	term := r.FormValue("term")
+
+	log.Println("attaching shell", id)
 
 	width, err := strconv.ParseFloat(r.FormValue("width"), 64)
 	if err != nil {
@@ -250,7 +259,10 @@ func (s *Server) attachShell(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	<-shell.Attach(stdin, stdout)
+	// flush the output
+	fmt.Fprintf(stdout, "HTTP/1.1 200 OK\r\nContent-Type: application/vnd.gomux.raw-stream\r\n\r\n")
+	err = <-shell.Attach(stdin, stdout)
+	log.Println("error", err)
 }
 
 func (s *Server) resizeShell(w http.ResponseWriter, r *http.Request) {
@@ -268,6 +280,8 @@ func (s *Server) resizeShell(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Println("resize", id, width, height)
+
 	shell, ok := s.Shells[id]
 	if !ok {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -275,6 +289,7 @@ func (s *Server) resizeShell(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := shell.Resize(width, height); err != nil {
+		log.Println("resize err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -353,6 +368,7 @@ func (s *Server) CreateRouter() *mux.Router {
 
 func NewServer(agentType string) *Server {
 	s := &Server{AgentType: agentType}
+	s.Shells = map[string]agent.Shell{}
 	s.Router = s.CreateRouter()
 	return s
 }

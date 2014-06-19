@@ -3,6 +3,7 @@ package docker_lxc
 import (
 	"github.com/nitrous-io/containerd/agent"
 	"github.com/nitrous-io/containerd/containerfs"
+	_ "github.com/nitrous-io/containerd/containerfs/aufs"
 )
 
 func init() {

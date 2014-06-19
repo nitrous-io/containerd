@@ -32,6 +32,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if err := os.Chmod(*flSocket, 0777); err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("Starting server at %v", *flSocket)
 	s := server.NewServer("docker_lxc")
 	httpServ := http.Server{Addr: *flSocket, Handler: s.Router}
 	log.Fatalf("ListenAndServer: %v", httpServ.Serve(l))

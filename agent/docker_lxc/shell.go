@@ -2,11 +2,13 @@ package docker_lxc
 
 import (
 	"io"
+	"log"
 	"os"
 	"os/exec"
 
 	"github.com/dotcloud/docker/pkg/term"
 	"github.com/kr/pty"
+
 	"github.com/nitrous-io/containerd/agent"
 )
 
@@ -26,15 +28,24 @@ func (s *shell) Open(term string, w, h float64) error {
 		"--name", s.id,
 		"--clear-env",
 		"--set-var", "TERM=" + term,
-		"--", "sudo", "-u", s.username,
 	}
 	cmd := exec.Command("lxc-attach", args...)
 	sh, err := pty.Start(cmd)
 	if err != nil {
+		log.Println("err", err)
 		return err
 	}
 	s.term = sh
 	return s.Resize(w, h)
+}
+
+type inspectWriter struct {
+	stdout io.Writer
+}
+
+func (w *inspectWriter) Write(p []byte) (int, error) {
+	log.Println("write", string(p))
+	return w.stdout.Write(p)
 }
 
 func (s *shell) Attach(stdin io.Reader, stdout io.Writer) chan error {
@@ -42,20 +53,24 @@ func (s *shell) Attach(stdin io.Reader, stdout io.Writer) chan error {
 
 	// stdin
 	go func() {
+		log.Println("attach stdin")
 		defer s.Close()
 		_, err := io.Copy(s.term, stdin)
 		if err == io.ErrClosedPipe {
 			err = nil
 		}
+		log.Println("attach in", err)
 		errors <- err
 	}()
 
 	// stdout
 	go func() {
-		_, err := io.Copy(stdout, s.term)
+		log.Println("attach out")
+		_, err := io.Copy(&inspectWriter{stdout: stdout}, s.term)
 		if err == io.ErrClosedPipe {
 			err = nil
 		}
+		log.Println("attach out", err)
 		errors <- err
 	}()
 

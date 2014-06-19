@@ -3,6 +3,7 @@ package agent
 import (
 	"fmt"
 	"io"
+	"log"
 
 	"github.com/nitrous-io/containerd/containerfs"
 )
@@ -49,6 +50,7 @@ func RegisterClient(name string, f NewClientFunc) {
 }
 
 func GetClient(name, containerId, username string) (Client, error) {
+	log.Println(agents)
 	f, ok := agents[name]
 	if !ok {
 		return nil, fmt.Errorf("Invalid name %s", name)
