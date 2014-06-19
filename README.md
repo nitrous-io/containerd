@@ -15,8 +15,9 @@ does:
 - PUT "/containers/{id:.*}/rename": rename a path
 - POST "/containers/{id:.*}/file": write a new file
 - POST "/containers/{id:.*}/dir": create a new directory
-- POST "/containers/{id:.*}/attach": attach a shell to the container (http stream) and return the session id
+- POST "/containers/{id:.*}/shell": register the intention to create a shell, this will return a shell id that we tracks
+- POST "/shell/{id:.*}/attach": attach to the shell with this id to the container (http stream), this will actually start the shell
 - POST "/shell/{id:.*}/resize": resize a running shell
-- POST	"/containers/{id:.*}/command": run a command in  the container
+- POST "/containers/{id:.*}/command": run a command in  the container
 - DELETE "/containers/{id:.*}/path": delete a path in the container
 ```
