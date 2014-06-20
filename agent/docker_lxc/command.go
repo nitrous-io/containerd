@@ -26,7 +26,9 @@ func newCommand(id, user, cmd string) *command {
 	args := []string{
 		"--name", id,
 		"--clear-env",
-		"--", "sudo", "-u", user, cmd,
+		"--",
+		"sudo", "-u", user,
+		"-i", "sh", "-c", cmd,
 	}
 	return &command{
 		Cmd: exec.Command("lxc-attach", args...),

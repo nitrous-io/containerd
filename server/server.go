@@ -300,6 +300,7 @@ func (s *Server) resizeShell(w http.ResponseWriter, r *http.Request) {
 func (s *Server) runCommand(w http.ResponseWriter, r *http.Request) {
 	c, err := s.getClient(r)
 	if err != nil {
+		log.Println("client", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -307,6 +308,7 @@ func (s *Server) runCommand(w http.ResponseWriter, r *http.Request) {
 	cmd := c.NewCommand(r.FormValue("cmd"))
 	_, outR, errR, err := cmd.AllPipe()
 	if err != nil {
+		log.Println("pipe", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -319,11 +321,13 @@ func (s *Server) runCommand(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	if err := cmd.Start(); err != nil {
+		log.Println("start", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if err := cmd.Wait(); err != nil {
+		log.Println("wait", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
