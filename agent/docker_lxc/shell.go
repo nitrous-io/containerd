@@ -28,6 +28,8 @@ func (s *shell) Open(term string, w, h float64) error {
 		"--name", s.id,
 		"--clear-env",
 		"--set-var", "TERM=" + term,
+		"--",
+		"sudo", "login", "-f", s.username,
 	}
 	cmd := exec.Command("lxc-attach", args...)
 	sh, err := pty.Start(cmd)
