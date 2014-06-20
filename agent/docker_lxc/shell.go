@@ -41,38 +41,25 @@ func (s *shell) Open(term string, w, h float64) error {
 	return s.Resize(w, h)
 }
 
-type inspectWriter struct {
-	stdout io.Writer
-}
-
-func (w *inspectWriter) Write(p []byte) (int, error) {
-	log.Println("write", string(p))
-	return w.stdout.Write(p)
-}
-
 func (s *shell) Attach(stdin io.Reader, stdout io.Writer) chan error {
 	errors := make(chan error, 2)
 
 	// stdin
 	go func() {
-		log.Println("attach stdin")
 		defer s.Close()
 		_, err := io.Copy(s.term, stdin)
 		if err == io.ErrClosedPipe {
 			err = nil
 		}
-		log.Println("attach in", err)
 		errors <- err
 	}()
 
 	// stdout
 	go func() {
-		log.Println("attach out")
-		_, err := io.Copy(&inspectWriter{stdout: stdout}, s.term)
+		_, err := io.Copy(stdout, s.term)
 		if err == io.ErrClosedPipe {
 			err = nil
 		}
-		log.Println("attach out", err)
 		errors <- err
 	}()
 
