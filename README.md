@@ -19,5 +19,6 @@ does:
 - POST "/shell/{id:.*}/attach": attach to the shell with this id to the container (http stream), this will actually start the shell
 - POST "/shell/{id:.*}/resize": resize a running shell
 - POST "/containers/{id:.*}/command": run a command in  the container
+- POST "/containers/{id:.*}/wait": wait for container to finished
 - DELETE "/containers/{id:.*}/path": delete a path in the container
 ```

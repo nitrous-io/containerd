@@ -21,6 +21,8 @@ type Command interface {
 }
 
 type Client interface {
+	Wait() error
+
 	// Command
 	NewCommand(cmd string) Command
 

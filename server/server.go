@@ -193,6 +193,19 @@ func (s *Server) makeDir(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(okResponse))
 }
 
+func (s *Server) waitContainer(w http.ResponseWriter, r *http.Request) {
+	c, err := s.getClient(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := c.Wait(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write([]byte(okResponse))
+}
+
 func (s *Server) newShell(w http.ResponseWriter, r *http.Request) {
 	c, err := s.getClient(r)
 	if err != nil {
@@ -339,6 +352,7 @@ func (s *Server) CreateRouter() *mux.Router {
 			"/containers/{id:.*}/rename": s.renamePath,
 		},
 		"POST": {
+			"/containers/{id:.*}/wait":    s.waitContainer,
 			"/containers/{id:.*}/file":    s.writeNewFile,
 			"/containers/{id:.*}/dir":     s.makeDir,
 			"/containers/{id:.*}/command": s.runCommand,
