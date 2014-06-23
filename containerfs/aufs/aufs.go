@@ -1,8 +1,6 @@
 package aufs
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -15,7 +13,8 @@ import (
 )
 
 const (
-	root = "/var/lib/docker/aufs/mnt"
+	//root = "/var/lib/docker/aufs/mnt"
+	root = "/var/lib/lxc"
 )
 
 type Aufs struct {
@@ -57,13 +56,8 @@ func (a *Aufs) CreateNew(name string) (io.WriteCloser, error) {
 	return f, nil
 }
 
-func (a *Aufs) Open(name string) (containerfs.File, error) {
-	f, err := os.Open(a.path(name))
-	if err != nil {
-		return containerfs.File{}, err
-	}
-	defer f.Close()
-	return toContainerFile(f)
+func (a *Aufs) Open(name string) (io.ReadCloser, error) {
+	return os.Open(a.path(name))
 }
 
 func (a *Aufs) Mkdir(name string) error {
@@ -99,13 +93,22 @@ func (a *Aufs) ReadDir(name string) ([]containerfs.FileInfo, error) {
 	return toFileInfos(entries), nil
 }
 
+func (a *Aufs) Stat(name string) (containerfs.FileInfo, error) {
+	name = a.path(name)
+	stat, err := os.Stat(name)
+	if err != nil {
+		return containerfs.FileInfo{}, err
+	}
+	return toFileInfo(stat), nil
+}
+
 func init() {
 	containerfs.RegisterFS("aufs", newAufs)
 }
 
 func newAufs(id string) (containerfs.ContainerFS, error) {
 	return &Aufs{
-		root: path.Join(root, id),
+		root: path.Join(root, id, "rootfs"),
 	}, nil
 }
 
@@ -123,21 +126,6 @@ func (a *Aufs) owner(name string) (int, int, error) {
 		return 0, 0, fmt.Errorf("failed to get system file stat")
 	}
 	return int(s.Uid), int(s.Gid), nil
-}
-
-func toContainerFile(f *os.File) (containerfs.File, error) {
-	file := containerfs.File{}
-	stat, err := f.Stat()
-	if err != nil {
-		return file, err
-	}
-	file.FileInfo = toFileInfo(stat)
-	b := bytes.NewBuffer(nil)
-	if _, err := io.Copy(bufio.NewWriter(b), f); err != nil {
-		return file, err
-	}
-	file.Content = b.Bytes()
-	return file, nil
 }
 
 func toFileInfo(e os.FileInfo) containerfs.FileInfo {

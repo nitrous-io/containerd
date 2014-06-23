@@ -10,7 +10,6 @@ package stdstream
 import (
 	"fmt"
 	"io"
-	"log"
 )
 
 type StdStream struct {
@@ -19,7 +18,6 @@ type StdStream struct {
 }
 
 func (c *StdStream) Write(p []byte) (int, error) {
-	log.Println("stream", string(p))
 	b := append(p, '\n')
 	if _, err := c.output.Write(b); err != nil {
 		return 0, err

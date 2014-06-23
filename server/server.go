@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"mime/multipart"
 	"net"
 	"net/http"
 	"strconv"
@@ -48,7 +47,26 @@ func (s *Server) readFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(file); err != nil {
+	defer file.Close()
+	io.Copy(w, file)
+}
+
+func (s *Server) readFileInfo(w http.ResponseWriter, r *http.Request) {
+	c, err := s.getClient(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// read the file
+	filePath := r.FormValue("path")
+	stat, err := c.Stat(filePath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(stat); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -62,8 +80,10 @@ func (s *Server) listDir(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dirPath := r.FormValue("path")
+	log.Println("readdir path", dirPath)
 	fileInfos, err := c.ReadDir(dirPath)
 	if err != nil {
+		log.Println("readdir", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -81,31 +101,47 @@ func (s *Server) writeFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(defaultUploadMemory); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	filePath := r.FormValue("path")
 	f, err := c.Create(filePath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	defer f.Close()
-	for _, fhs := range r.MultipartForm.File {
-		if len(fhs) <= 0 {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if err := copyUpload(f, fhs[0]); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+
+	fileW, _, err := hijackServer(w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer fileW.Close()
+
+	io.Copy(f, fileW)
+}
+
+func (s *Server) writeNewFile(w http.ResponseWriter, r *http.Request) {
+	c, err := s.getClient(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	w.Write([]byte(okResponse))
+	filePath := r.FormValue("path")
+	f, err := c.CreateNew(filePath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	fileW, _, err := hijackServer(w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer fileW.Close()
+
+	io.Copy(f, fileW)
 }
 
 func (s *Server) renamePath(w http.ResponseWriter, r *http.Request) {
@@ -136,40 +172,6 @@ func (s *Server) deletePath(w http.ResponseWriter, r *http.Request) {
 	if err := c.Remove(path); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	w.Write([]byte(okResponse))
-}
-
-func (s *Server) writeNewFile(w http.ResponseWriter, r *http.Request) {
-	c, err := s.getClient(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err := r.ParseMultipartForm(defaultUploadMemory); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	filePath := r.FormValue("path")
-	f, err := c.CreateNew(filePath)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	defer f.Close()
-	for _, fhs := range r.MultipartForm.File {
-		if len(fhs) <= 0 {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if err := copyUpload(f, fhs[0]); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 	}
 
 	w.Write([]byte(okResponse))
@@ -214,8 +216,6 @@ func (s *Server) attachShell(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	term := r.FormValue("term")
 
-	log.Println("attaching shell", id)
-
 	width, err := strconv.ParseFloat(r.FormValue("width"), 64)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -259,8 +259,6 @@ func (s *Server) attachShell(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// flush the output
-	fmt.Fprintf(stdout, "HTTP/1.1 200 OK\r\nContent-Type: application/vnd.gomux.raw-stream\r\n\r\n")
 	err = <-shell.Attach(stdin, stdout)
 	log.Println("error", err)
 }
@@ -280,8 +278,6 @@ func (s *Server) resizeShell(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println("resize", id, width, height)
-
 	shell, ok := s.Shells[id]
 	if !ok {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -289,7 +285,6 @@ func (s *Server) resizeShell(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := shell.Resize(width, height); err != nil {
-		log.Println("resize err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -300,7 +295,6 @@ func (s *Server) resizeShell(w http.ResponseWriter, r *http.Request) {
 func (s *Server) runCommand(w http.ResponseWriter, r *http.Request) {
 	c, err := s.getClient(r)
 	if err != nil {
-		log.Println("client", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -308,7 +302,6 @@ func (s *Server) runCommand(w http.ResponseWriter, r *http.Request) {
 	cmd := c.NewCommand(r.FormValue("cmd"))
 	_, outR, errR, err := cmd.AllPipe()
 	if err != nil {
-		log.Println("pipe", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -321,13 +314,11 @@ func (s *Server) runCommand(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	if err := cmd.Start(); err != nil {
-		log.Println("start", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if err := cmd.Wait(); err != nil {
-		log.Println("wait", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -339,8 +330,9 @@ func (s *Server) CreateRouter() *mux.Router {
 	// setup http handler
 	m := map[string]map[string]http.HandlerFunc{
 		"GET": {
-			"/containers/{id:.*}/file": s.readFile,
-			"/containers/{id:.*}/dir":  s.listDir,
+			"/containers/{id:.*}/file":     s.readFile,
+			"/containers/{id:.*}/fileinfo": s.readFileInfo,
+			"/containers/{id:.*}/dir":      s.listDir,
 		},
 		"PUT": {
 			"/containers/{id:.*}/file":   s.writeFile,
@@ -377,16 +369,6 @@ func NewServer(agentType string) *Server {
 	return s
 }
 
-func copyUpload(dest io.WriteCloser, uploaded *multipart.FileHeader) error {
-	defer dest.Close()
-	from, err := uploaded.Open()
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(dest, from)
-	return err
-}
-
 func hijackServer(w http.ResponseWriter) (io.ReadCloser, io.Writer, error) {
 	conn, _, err := w.(http.Hijacker).Hijack()
 	if err != nil {
@@ -394,5 +376,6 @@ func hijackServer(w http.ResponseWriter) (io.ReadCloser, io.Writer, error) {
 	}
 	// Flush the options to make sure the client sets the raw mode
 	conn.Write([]byte{})
+	fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-Type: application/vnd.containerd.raw-stream\r\n\r\n")
 	return conn, conn, nil
 }

@@ -7,11 +7,6 @@ import (
 	"time"
 )
 
-type File struct {
-	Content  []byte
-	FileInfo FileInfo
-}
-
 type FileInfo struct {
 	Name    string
 	Size    int64
@@ -24,11 +19,12 @@ type ContainerFS interface {
 	// Filesystem
 	Create(path string) (io.WriteCloser, error)
 	CreateNew(path string) (io.WriteCloser, error)
-	Open(path string) (File, error)
+	Open(path string) (io.ReadCloser, error)
 	Mkdir(path string) error
 	Rename(oldname, newname string) error
 	Remove(path string) error
 	ReadDir(p string) ([]FileInfo, error)
+	Stat(p string) (FileInfo, error)
 }
 
 type NewFS func(id string) (ContainerFS, error)

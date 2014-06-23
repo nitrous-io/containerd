@@ -27,11 +27,12 @@ type Client interface {
 	// Filesystem proxy to containerfs
 	Create(path string) (io.WriteCloser, error)
 	CreateNew(path string) (io.WriteCloser, error)
-	Open(path string) (containerfs.File, error)
+	Open(path string) (io.ReadCloser, error)
 	Mkdir(path string) error
 	Rename(oldname, newname string) error
 	Remove(path string) error
 	ReadDir(p string) ([]containerfs.FileInfo, error)
+	Stat(p string) (containerfs.FileInfo, error)
 
 	// Shell
 	NewShell() (Shell, error)
