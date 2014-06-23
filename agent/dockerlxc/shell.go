@@ -2,20 +2,21 @@ package dockerlxc
 
 import (
 	"io"
-	"log"
 	"os"
 	"os/exec"
 
-	"github.com/dotcloud/docker/pkg/term"
 	"github.com/kr/pty"
-
 	"github.com/nitrous-io/containerd/agent"
+	"github.com/nitrous-io/containerd/pkg/term"
 )
 
 type shell struct {
 	username string
 	id       string
 	term     io.ReadWriter
+	// we use lxc-attach by default, but user can switch this to a more
+	// lightweight command like bash for testing purpose
+	cmd *exec.Cmd
 }
 
 func (s *shell) Close() {
@@ -24,17 +25,18 @@ func (s *shell) Close() {
 }
 
 func (s *shell) Open(term string, w, h float64) error {
-	args := []string{
-		"--name", s.id,
-		"--clear-env",
-		"--set-var", "TERM=" + term,
-		"--",
-		"sudo", "login", "-f", s.username,
+	if s.cmd == nil {
+		args := []string{
+			"--name", s.id,
+			"--clear-env",
+			"--set-var", "TERM=" + term,
+			"--",
+			"sudo", "login", "-f", s.username,
+		}
+		s.cmd = exec.Command("lxc-attach", args...)
 	}
-	cmd := exec.Command("lxc-attach", args...)
-	sh, err := pty.Start(cmd)
+	sh, err := pty.Start(s.cmd)
 	if err != nil {
-		log.Println("err", err)
 		return err
 	}
 	s.term = sh
@@ -46,7 +48,6 @@ func (s *shell) Attach(stdin io.Reader, stdout io.Writer) chan error {
 
 	// stdin
 	go func() {
-		defer s.Close()
 		_, err := io.Copy(s.term, stdin)
 		if err == io.ErrClosedPipe {
 			err = nil
@@ -64,6 +65,7 @@ func (s *shell) Attach(stdin io.Reader, stdout io.Writer) chan error {
 	}()
 
 	return promise(func() error {
+		defer s.Close()
 		for i := 0; i < 2; i += 1 {
 			if err := <-errors; err != nil {
 				return err
