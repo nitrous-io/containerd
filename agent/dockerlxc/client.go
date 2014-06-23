@@ -1,15 +1,15 @@
-package docker_lxc
+package dockerlxc
 
 import (
 	"os/exec"
 
 	"github.com/nitrous-io/containerd/agent"
 	"github.com/nitrous-io/containerd/containerfs"
-	_ "github.com/nitrous-io/containerd/containerfs/aufs"
+	_ "github.com/nitrous-io/containerd/containerfs/dir"
 )
 
 func init() {
-	agent.RegisterClient("docker_lxc", newClient)
+	agent.RegisterClient("dockerlxc", newClient)
 }
 
 type Client struct {
@@ -32,7 +32,7 @@ func (c *Client) Wait() error {
 }
 
 func newClient(id, username string) (agent.Client, error) {
-	fs, err := containerfs.GetContainerFS("aufs", id)
+	fs, err := containerfs.GetContainerFS("dir", id)
 	if err != nil {
 		return nil, err
 	}

@@ -1,4 +1,4 @@
-package docker_lxc
+package dockerlxc
 
 import (
 	"io"
