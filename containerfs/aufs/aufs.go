@@ -24,7 +24,7 @@ type Aufs struct {
 // create a new file with the same owner id as the parent
 func (a *Aufs) Create(name string) (io.WriteCloser, error) {
 	name = a.path(name)
-	uid, gid, err := a.owner(path.Base(name))
+	uid, gid, err := a.owner(filepath.Dir(name))
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (a *Aufs) Create(name string) (io.WriteCloser, error) {
 // file exists
 func (a *Aufs) CreateNew(name string) (io.WriteCloser, error) {
 	name = a.path(name)
-	uid, gid, err := a.owner(filepath.Base(name))
+	uid, gid, err := a.owner(filepath.Dir(name))
 	if err != nil {
 		return nil, err
 	}
