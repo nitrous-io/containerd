@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultAgent = "docker_lxc"
+	defaultAgent = "dockerlxc"
 )
 
 func main() {
@@ -37,7 +37,7 @@ func main() {
 	}
 
 	log.Printf("Starting server at %v", *flSocket)
-	s := server.NewServer("docker_lxc")
+	s := server.NewServer("dockerlxc")
 	httpServ := http.Server{Addr: *flSocket, Handler: s.Router}
 	log.Fatalf("ListenAndServer: %v", httpServ.Serve(l))
 }

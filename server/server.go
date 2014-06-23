@@ -13,7 +13,7 @@ import (
 	"github.com/nitrous-io/containerd/stdstream"
 
 	"github.com/nitrous-io/containerd/agent"
-	_ "github.com/nitrous-io/containerd/agent/docker_lxc"
+	_ "github.com/nitrous-io/containerd/agent/dockerlxc"
 )
 
 const (
